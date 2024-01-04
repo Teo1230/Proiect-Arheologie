@@ -1,8 +1,9 @@
+#the aproach with knn
 import csv
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import RandomForestClassifier  # Added RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier  # Change to k-Nearest Neighbors
 from sklearn.metrics import accuracy_score, classification_report
 import spacy
 import os
@@ -16,6 +17,7 @@ nlp = spacy.load("en_core_web_sm")
 Doc.set_extension("polarity", default=None)
 Doc.set_extension("subjectivity", default=None)
 Token.set_extension("is_negated", default=None)
+
 def load_csv(path_data, test=None):
     csv.field_size_limit(131072 * 10)
 
@@ -107,18 +109,37 @@ def extract_structure(text):
     }
     return structure_info
 
-def tune_random_forest(train_features, labels):
-    param_grid = {'n_estimators': [50, 100, 200,300,400,500], 'max_depth': [100,200,1000,100000,2424241,3000000,4000000,5000000]}
+def tune_knn(train_features, labels):
+    param_grid = {'n_neighbors': [3, 5, 7], 'weights': ['uniform', 'distance'], 'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']}
 
-    model = RandomForestClassifier()
+    model = KNeighborsClassifier()
 
     grid_search = GridSearchCV(model, param_grid, cv=5, scoring='accuracy')
 
     grid_search.fit(train_features, labels)
 
-    print("Best Parameters (Random Forest):", grid_search.best_params_)
+    print("Best Parameters (KNN):", grid_search.best_params_)
 
     return grid_search.best_estimator_
+
+import pandas as pd
+from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score, f1_score, confusion_matrix
+
+def evaluate(predictions, labels):
+    print('******************************************')
+    print('*********  EVALUATING PREDICTIONS ********')
+    print('******************************************')
+    print()
+
+    accuracy = accuracy_score(labels, predictions)
+    classification_rep = classification_report(labels, predictions)
+    conf_mat = confusion_matrix(labels, predictions)
+
+    print("Accuracy: {:.3f}".format(accuracy))
+    print("\nClassification Report:\n", classification_rep)
+    print("\nConfusion Matrix:\n", conf_mat)
+
+    return accuracy, classification_rep, conf_mat
 
 
 def main():
@@ -136,28 +157,20 @@ def main():
     data_test = clustering_data(task_A_test_data, crowd_test_data, shared_test_posts_data)
     df_test = pd.DataFrame(data_test)
 
-    df_train['structure_info'] = (df_train['post_body']).apply(extract_structure)
+    df_train['structure_info'] = (df_train['post_title']+df_train['post_body']).apply(extract_structure)
 
-    df_test['structure_info'] = (df_test['post_body']).apply(extract_structure)
+    df_test['structure_info'] = (df_test['post_title']+df_test['post_body']).apply(extract_structure)
 
-    # Feature extraction using TF-IDF
     tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
-    train_features = tfidf_vectorizer.fit_transform(df_train['post_body'])
-    test_features = tfidf_vectorizer.transform(df_test['post_body'])
+    train_features = tfidf_vectorizer.fit_transform(df_train['post_title']+df_train['post_body'])
+    test_features = tfidf_vectorizer.transform(df_test['post_title']+df_test['post_body'])
 
-    # Tune the Random Forest model
-    tuned_rf_model = tune_random_forest(train_features, df_train['label'])
+    tuned_knn_model = tune_knn(train_features, df_train['label'])
 
-    # Train the tuned Random Forest model
-    tuned_rf_model.fit(train_features, df_train['label'])
+    tuned_knn_model.fit(train_features, df_train['label'])
 
-    # Make predictions on the test set
-    predictions_rf = tuned_rf_model.predict(test_features)
-
-    accuracy_rf = accuracy_score(df_test['label'], predictions_rf)
-    print(f"Tuned Random Forest Model Accuracy: {accuracy_rf:.2f}")
-    print("\nClassification Report (Random Forest):\n", classification_report(df_test['label'], predictions_rf))
-
+    predictions_knn = tuned_knn_model.predict(test_features)
+    accuracy, classification_rep, conf_matrix = evaluate(predictions_knn, df_test['label'])
 
 if __name__ == "__main__":
     main()
