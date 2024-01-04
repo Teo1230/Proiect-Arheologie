@@ -108,7 +108,7 @@ def extract_structure(text):
     return structure_info
 
 def tune_random_forest(train_features, labels):
-    param_grid = {'n_estimators': [50, 100, 200], 'max_depth': [2424241,3000000,4000000]}
+    param_grid = {'n_estimators': [50, 100, 200,300,400,500], 'max_depth': [100,200,1000,100000,2424241,3000000,4000000,5000000]}
 
     model = RandomForestClassifier()
 
@@ -136,14 +136,14 @@ def main():
     data_test = clustering_data(task_A_test_data, crowd_test_data, shared_test_posts_data)
     df_test = pd.DataFrame(data_test)
 
-    df_train['structure_info'] = (df_train['post_title']+df_train['post_body']).apply(extract_structure)
+    df_train['structure_info'] = (df_train['post_body']).apply(extract_structure)
 
-    df_test['structure_info'] = (df_test['post_title']+df_test['post_body']).apply(extract_structure)
+    df_test['structure_info'] = (df_test['post_body']).apply(extract_structure)
 
     # Feature extraction using TF-IDF
     tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
-    train_features = tfidf_vectorizer.fit_transform(df_train['post_title']+df_train['post_body'])
-    test_features = tfidf_vectorizer.transform(df_test['post_title']+df_test['post_body'])
+    train_features = tfidf_vectorizer.fit_transform(df_train['post_body'])
+    test_features = tfidf_vectorizer.transform(df_test['post_body'])
 
     # Tune the Random Forest model
     tuned_rf_model = tune_random_forest(train_features, df_train['label'])
