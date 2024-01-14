@@ -1,4 +1,4 @@
-#varianta 1.3 antrenez direct pe experts si apoi folosesc shap
+#varianta 1.3 antrenez direct pe experts si apoi folosesc shap ca sa extrag expresiile importante
 
 import csv
 import pandas as pd
@@ -55,11 +55,12 @@ def clustering_data(expert_posts, expert_users):
     for user in expert_users:
         user_id=user['user_id']
         for post in expert_posts:
-            if post['user_id']==user_id:
+            if post['user_id']==user_id and post['subreddit']=='SuicideWatch':
                 post['label']=user['label']
                 data.append(post)
                 break
-    return data     
+    print(len(data))
+    return data
 
 data_mapping_expert = load_csv(path_find('umd_reddit_suicidewatch_dataset_v2', 'expert'))
 expert_posts=data_mapping_expert['posts']
@@ -94,8 +95,8 @@ shap_values = explainer.shap_values(test_features)
 X_test_array = test_features.toarray()
 
 feature_names = np.array(tfidf_vectorizer.get_feature_names_out())
-unique_expressions = set(feature_names[i] for i in np.where(shap_values[1] < 0)[0])
-print(unique_expressions)
+# unique_expressions = set(feature_names[i] for i in np.where(shap_values[1] < 0)[0])
+# print(unique_expressions)
 
 from typing import List
 def verify_unique_strings(strings: List[str]):
