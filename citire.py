@@ -46,11 +46,11 @@ def clustering_data(expert_posts, expert_users):
     for user in expert_users:
         user_id=user['user_id']
         for post in expert_posts:
-            if post['user_id']==user_id:
+            if post['user_id']==user_id and post['subreddit']=='SuicideWatch':
                 post['label']=user['label']
                 data.append(post)
                 break
-    return data     
+    return data
 
 data_mapping_expert = load_csv(path_find('umd_reddit_suicidewatch_dataset_v2', 'expert'))
 expert_posts=data_mapping_expert['posts']
