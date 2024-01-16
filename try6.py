@@ -66,7 +66,7 @@ def clustering_data(expert_posts, expert_users):
     return data
 
 
-data_mapping_expert = load_csv(path_find('../umd_reddit_suicidewatch_dataset_v2', 'expert'))
+data_mapping_expert = load_csv(path_find('umd_reddit_suicidewatch_dataset_v2', 'expert'))
 expert_posts = data_mapping_expert['posts']
 expert_users = data_mapping_expert['users']
 expert_users = [user for user in expert_users if not user.get('label', '') == '']

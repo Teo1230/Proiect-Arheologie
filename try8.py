@@ -1,16 +1,21 @@
 #varianta 1.2 antrenez modelul pe shared_task apoi aplic pipeline ul direct pe cei 209 users din experts
+# extrag caracteristicile si le pun in highlights si apoi propozitiile care contin acele expresii si le pun in summary
+#extractive summary
+# varianta in care folosesc range 2-4 in tfidf_vectorizer
+
+
 
 import shap
-import json
 from sklearn.feature_extraction.text import TfidfVectorizer
+import json
 from sklearn.linear_model import LogisticRegression
 import numpy as np
-from nltk import ngrams
-from nltk.tokenize import word_tokenize
 import re
-
+from typing import List
+from nltk.tokenize import word_tokenize
 
 from citire import data, df_test
+
 
 mapare = {"a":1, "b":-1, "c": -1, "d": -1}
 df_test['label'] = df_test['label'].apply(lambda x: mapare[x])
@@ -22,7 +27,7 @@ tfidf_vectorizer = TfidfVectorizer(**{
     'strip_accents': 'unicode',
     'analyzer': 'word',
     'token_pattern': r'\b[^\d\W]+\b',
-    'ngram_range': (1, 3),
+    'ngram_range': (2, 4),
     'use_idf': True,
     'smooth_idf': True,
     'sublinear_tf': True,
@@ -35,29 +40,32 @@ test_features = tfidf_vectorizer.fit_transform(df_test['post_title']+df_test['po
 model = LogisticRegression(class_weight='balanced')
 model.fit(test_features, df_test['label'])
 
-explainer = shap.LinearExplainer(model, test_features, feature_dependence="independent") 
+explainer = shap.LinearExplainer(model, test_features, feature_dependence="independent")
 shap_values = explainer.shap_values(test_features)
 X_test_array = test_features.toarray()
 
 feature_names = np.array(tfidf_vectorizer.get_feature_names_out())
 
-from typing import List
 
-def verify_unique_strings(strings):
+new_data = tfidf_vectorizer.transform(data['post_title'] + data['post_body']).toarray()
+explainer_new = shap.LinearExplainer(model, new_data, feature_dependence="independent")
+shap_values_new = explainer_new.shap_values(new_data)
+
+feature_names_new = np.array(tfidf_vectorizer.get_feature_names_out())
+
+
+def verify_unique_strings(strings: List[str]):
     unique_strings = []
 
     for string in strings:
-        string_copy = string.lower()  # Create a copy to avoid altering the original string
-        tokens = word_tokenize(string_copy)
-        substrings = [' '.join(gram) for gram in ngrams(tokens, 3) if all(len(word) >= 3 for word in gram)]
-
+        i = 3
+        substr = [string.split(" ")[i - 3:i] for i in range(3, len(string))]
+        substr = [i for i in substr if len(i) >= 3]
         is_unique = all(
-            all(sub not in other_string and other_string not in sub for other_string in unique_strings) for sub in
-            substrings)
-
+            all(" ".join(str1) not in other_string and other_string not in string for other_string in unique_strings)
+            for str1 in substr)
         if is_unique:
             unique_strings.append(string)
-
     return unique_strings
 
 
@@ -75,32 +83,50 @@ def clean_sentence(sentence):
     return cleaned_sentence
 
 
+def get_summary(post_id, shap_values, dataset, ft_names):
+    matching_rows = dataset[dataset['post_id'] == post_id]
+
+    if not matching_rows.empty:
+        post_index = matching_rows.index[0]
+        post_shap_values = shap_values[post_index]
+        top_feature_indices = np.argsort(post_shap_values)[:20]
+        top_features = ft_names[top_feature_indices]
+        unique_top_features = verify_unique_strings(top_features)
+
+        extracted_sentences = []
+        post_body = dataset.loc[post_index, 'post_body']
+
+        for feature in unique_top_features:
+            sentences = extract_sentence_with_feature(post_body, feature)
+            extracted_sentences.extend(sentences)
+
+        extracted_sentences = list(set(extracted_sentences))
+        return extracted_sentences
+    else:
+        return []
+
+
 def get_highlights(post_id, shap_values, dataset, ft_names):
     matching_rows = dataset[dataset['post_id'] == post_id]
 
     if not matching_rows.empty:
         post_index = matching_rows.index[0]
         post_shap_values = shap_values[post_index]
-        top_feature_indices = np.argsort(post_shap_values)[:7]
+        top_feature_indices = np.argsort(post_shap_values)[:10]
         top_features = ft_names[top_feature_indices]
+
         unique_top_features = verify_unique_strings(top_features)
 
-        highlights = []
-        post_body = dataset.loc[post_index, 'post_body']
-
-        for feature in unique_top_features:
-            sentences = extract_sentence_with_feature(post_body, feature)
-            highlights.extend(sentences)
-
-        highlights = list(set(highlights))
-
-        return highlights
+        return unique_top_features
     else:
         return []
-    
+
+
 def generate_json_output(user_id, post_id, shap_values, dataset, ft_names):
+    extracted_sentences = get_summary(post_id, shap_values, dataset, ft_names)
+
     user_data = {
-        "summarized_evidence": "Aggregating summary supporting assigned label",
+        "summarized_evidence": " ".join(extracted_sentences)[:300],
         "posts": [
             {
                 "post_id": post_id,
@@ -115,32 +141,6 @@ def generate_json_output(user_id, post_id, shap_values, dataset, ft_names):
     }
 
     return {user_id: user_data}
-
-output_data = {}
-
-for index, row in df_test.iterrows():
-    user_id = row['user_id']
-    post_id = row['post_id']
-
-    json_data = generate_json_output(user_id, post_id, shap_values, df_test, feature_names)
-    
-    if user_id in output_data:
-        output_data[user_id]['posts'].append(json_data[user_id]['posts'][0])
-    else:
-        output_data[user_id] = json_data[user_id]
-
-
-output_file_path = 'outputSharedTask.json'
-with open(output_file_path, 'w') as json_file:
-    json.dump(output_data, json_file, indent=2)
-
-print(f"Output saved to {output_file_path}")
-
-output_file_path = 'outputSharedTask.json'
-
-with open(output_file_path, 'r') as json_file:
-    json_data = json.load(json_file)
-print(json.dumps(json_data, indent=2)[:10000]) 
 
 new_data = tfidf_vectorizer.transform(data['post_title'] + data['post_body']).toarray()
 explainer_new = shap.LinearExplainer(model, new_data, feature_dependence="independent")
@@ -172,4 +172,3 @@ output_file_path_new = 'outputExperts1.json'
 with open(output_file_path_new, 'r') as json_file:
     json_data = json.load(json_file)
 print(json.dumps(json_data, indent=2)[:10000])
-
