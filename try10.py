@@ -1,5 +1,4 @@
-#varianta 1.2 antrenez modelul pe shared_task apoi aplic pipeline ul direct pe cei 209 users din experts
-# llm pt summary
+# varianta 1.2 antrenez modelul pe shared_task apoi aplic pipeline ul direct pe cei 209 users din experts
 
 import shap
 import json
@@ -49,6 +48,18 @@ X_test_array = test_features.toarray()
 
 feature_names = np.array(tfidf_vectorizer.get_feature_names_out())
 
+callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
+
+llm = LlamaCpp(
+    model_path="openhermes-2.5-mistral-7b.Q4_K_M.gguf",
+    temperature=0.75,
+    max_tokens=2000,
+    top_p=1,
+    n_ctx=32000,
+    callback_manager=callback_manager,
+    verbose=True,  # Verbose is required to pass to the callback manager
+)
+
 from typing import List
 
 
@@ -56,7 +67,7 @@ def verify_unique_strings(strings):
     unique_strings = []
 
     for string in strings:
-        string_copy = string.lower()  # Create a copy to avoid altering the original string
+        string_copy = string.lower()
         tokens = word_tokenize(string_copy)
         substrings = [' '.join(gram) for gram in ngrams(tokens, 3) if all(len(word) >= 3 for word in gram)]
 
@@ -145,7 +156,7 @@ shap_values_new = explainer_new.shap_values(new_data)
 feature_names_new = np.array(tfidf_vectorizer.get_feature_names_out())
 
 output_data_new = {}
-for index, row in data.head(2).iterrows():
+for index, row in data.iterrows():
     user_id = row['user_id']
     post_id = row['post_id']
 
@@ -154,14 +165,14 @@ for index, row in data.head(2).iterrows():
 
     json_data = generate_json_output(user_id, post_id, shap_values_new, data, feature_names_new, llm)
 
-    if user_id in output_data:
+    if user_id in output_data_new:
         output_data_new[user_id]['posts'].append(json_data[user_id]['posts'][0])
     else:
         output_data_new[user_id] = json_data[user_id]
 
 output_file_path = 'outputExpertsLLM1.json'
 with open(output_file_path, 'w') as json_file:
-    json.dump(output_data, json_file, indent=2)
+    json.dump(output_data_new, json_file, indent=2)
 
 print(f"Output saved to {output_file_path}")
 
