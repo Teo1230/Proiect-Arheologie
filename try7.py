@@ -1,5 +1,9 @@
-#extrag caracteristicile si apoi propozitiile care contin acele expresii
-#varianta in care folosesc range 5-10 in tfidf_vectorizer
+#antrenez direct pe experts si apoi folosesc shap
+# extrag caracteristicile si le pun in highlights si apoi propozitiile care contin acele expresii si le pun in summary
+#extractive summary
+# varianta in care folosesc range 1-3 in tfidf_vectorizer
+
+
 
 import csv
 import pandas as pd
@@ -10,14 +14,9 @@ import json
 from sklearn.linear_model import LogisticRegression
 import numpy as np
 import re
-import spacy
-from nltk import ngrams
-import nltk
+from typing import List
 from nltk.tokenize import word_tokenize
 
-nltk.download('punkt')
-
-nlp = spacy.load("en_core_web_sm")
 
 
 
@@ -107,22 +106,18 @@ feature_names = np.array(tfidf_vectorizer.get_feature_names_out())
 unique_expressions = set(feature_names[i] for i in np.where(shap_values[1] < 0)[0])
 #print(unique_expressions)
 
-
-def verify_unique_strings(strings):
+def verify_unique_strings(strings: List[str]):
     unique_strings = []
 
     for string in strings:
-        string_copy = string.lower()  # Create a copy to avoid altering the original string
-        tokens = word_tokenize(string_copy)
-        substrings = [' '.join(gram) for gram in ngrams(tokens, 3) if all(len(word) >= 3 for word in gram)]
-
+        i = 3
+        substr = [string.split(" ")[i - 3:i] for i in range(3, len(string))]
+        substr = [i for i in substr if len(i) >= 3]
         is_unique = all(
-            all(sub not in other_string and other_string not in sub for other_string in unique_strings) for sub in
-            substrings)
-
+            all(" ".join(str1) not in other_string and other_string not in string for other_string in unique_strings)
+            for str1 in substr)
         if is_unique:
             unique_strings.append(string)
-
     return unique_strings
 
 
@@ -140,33 +135,50 @@ def clean_sentence(sentence):
     return cleaned_sentence
 
 
+def get_summary(post_id, shap_values, dataset, ft_names):
+    matching_rows = dataset[dataset['post_id'] == post_id]
+
+    if not matching_rows.empty:
+        post_index = matching_rows.index[0]
+        post_shap_values = shap_values[post_index]
+        top_feature_indices = np.argsort(post_shap_values)[:20]
+        top_features = ft_names[top_feature_indices]
+        unique_top_features = verify_unique_strings(top_features)
+
+        extracted_sentences = []
+        post_body = dataset.loc[post_index, 'post_body']
+
+        for feature in unique_top_features:
+            sentences = extract_sentence_with_feature(post_body, feature)
+            extracted_sentences.extend(sentences)
+
+        extracted_sentences = list(set(extracted_sentences))
+        return extracted_sentences
+    else:
+        return []
+
+
 def get_highlights(post_id, shap_values, dataset, ft_names):
     matching_rows = dataset[dataset['post_id'] == post_id]
 
     if not matching_rows.empty:
         post_index = matching_rows.index[0]
         post_shap_values = shap_values[post_index]
-        top_feature_indices = np.argsort(post_shap_values)[:15]
+        top_feature_indices = np.argsort(post_shap_values)[:10]
         top_features = ft_names[top_feature_indices]
+
         unique_top_features = verify_unique_strings(top_features)
 
-        highlights = []
-        post_body = dataset.loc[post_index, 'post_body']
-
-        for feature in unique_top_features:
-            sentences = extract_sentence_with_feature(post_body, feature)
-            highlights.extend(sentences)
-
-        highlights = list(set(highlights))
-
-        return highlights
+        return unique_top_features
     else:
         return []
 
 
 def generate_json_output(user_id, post_id, shap_values, dataset, ft_names):
+    extracted_sentences = get_summary(post_id, shap_values, dataset, ft_names)
+
     user_data = {
-        "summarized_evidence": "Aggregating summary supporting assigned label",
+        "summarized_evidence": " ".join(extracted_sentences)[:300],
         "posts": [
             {
                 "post_id": post_id,
@@ -198,6 +210,7 @@ for index, row in data.iterrows():
         output_data[user_id]['posts'].append(json_data[user_id]['posts'][0])
     else:
         output_data[user_id] = json_data[user_id]
+
 
 output_file_path = 'outputExperts2.json'
 with open(output_file_path, 'w') as json_file:
