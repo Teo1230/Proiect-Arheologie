@@ -105,6 +105,17 @@ X_test_array = test_features.toarray()
 
 feature_names = np.array(tfidf_vectorizer.get_feature_names_out())
 
+callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
+
+llm = LlamaCpp(
+    model_path="openhermes-2.5-mistral-7b.Q4_K_M.gguf",
+    temperature=0.75,
+    max_tokens=2000,
+    top_p=1,
+    n_ctx=32000,
+    callback_manager=callback_manager,
+    verbose=True,  # Verbose is required to pass to the callback manager
+)
 
 def verify_unique_strings(strings):
     unique_strings = []
