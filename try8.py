@@ -46,14 +46,6 @@ X_test_array = test_features.toarray()
 
 feature_names = np.array(tfidf_vectorizer.get_feature_names_out())
 
-
-new_data = tfidf_vectorizer.transform(data['post_title'] + data['post_body']).toarray()
-explainer_new = shap.LinearExplainer(model, new_data, feature_dependence="independent")
-shap_values_new = explainer_new.shap_values(new_data)
-
-feature_names_new = np.array(tfidf_vectorizer.get_feature_names_out())
-
-
 def verify_unique_strings(strings: List[str]):
     unique_strings = []
 
@@ -169,6 +161,4 @@ print(f"Output saved to {output_file_path_new}")
 
 output_file_path_new = 'outputExperts1.json'
 
-with open(output_file_path_new, 'r') as json_file:
-    json_data = json.load(json_file)
-print(json.dumps(json_data, indent=2)[:10000])
+

@@ -1,4 +1,5 @@
 # varianta 1.2 antrenez modelul pe shared_task apoi aplic pipeline ul direct pe cei 209 users din experts
+# llm pt summary
 
 import shap
 import json
@@ -8,13 +9,8 @@ import numpy as np
 from nltk import ngrams
 from nltk.tokenize import word_tokenize
 import re
-import csv
-import pandas as pd
-import os
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
 from langchain_community.llms import LlamaCpp
 
 from citire import data, df_test
