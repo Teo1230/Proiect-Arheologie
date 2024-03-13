@@ -251,7 +251,7 @@ for user_id in expert_posts.keys():
         post_body = post['post_body']
         if post_body == '':
             post_body = post['post_title']
-        for _ in range(2):
+        for _ in range(8):
             question = f"Provide sequences of text that indicate that this person is suicidal?\n\nPost Body: {post_body}"
             result = llm_chain.run(question)
             if result=="":
@@ -272,7 +272,7 @@ for user_id in expert_posts.keys():
 
 for user_id in expert_posts.keys():
     content_body=""
-    user_id='10090'
+    user_id=user_id
     for post in expert_posts[user_id]:
         content_body=content_body+post['post_body']
     question = f"As a psychologist and expert therapist, summarize the content by identifying any indications of suicidal thoughts. Provide evidence from the text to support your analysis.\n\nPost Body: {content_body} Analyze"
